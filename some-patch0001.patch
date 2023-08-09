@@ -1,0 +1,67 @@
+commit c72dbf3b09997b226c20720c979ebae7366b0c1c
+Author: Gyuchang Jun <gyuchang@point.com>
+Date:   Thu May 7 23:07:09 2020 -0700
+
+    Move Canvas and Renderer initialization to DefaultClientServerInitHandler
+     - otherwise DefaultClientMessageHandler could get called before canvas and renderer are initialized
+
+diff --git a/client.go b/client.go
+index 7628451..8ae1f88 100644
+--- a/client.go
++++ b/client.go
+@@ -43,9 +43,6 @@ func Connect(ctx context.Context, c net.Conn, cfg *ClientConfig) (*ClientConn, e
+ 		}
+ 	}
+ 
+-	canvas := NewVncCanvas(int(conn.Width()), int(conn.Height()))
+-	canvas.DrawCursor = cfg.DrawCursor
+-	conn.Canvas = canvas
+ 	return conn, nil
+ }
+ 
+diff --git a/example/client/main.go b/example/client/main.go
+index d22b698..8f0a3a0 100644
+--- a/example/client/main.go
++++ b/example/client/main.go
+@@ -84,15 +84,6 @@ func main() {
+ 	//go vcodec.Run("C:\\Users\\betzalel\\Dropbox\\go\\src\\vnc2video\\example\\client\\ffmpeg.exe", "output.mp4")
+ 	//vcodec.Run("./output")
+ 
+-	//screenImage := vnc.NewVncCanvas(int(cc.Width()), int(cc.Height()))
+-
+-	for _, enc := range ccfg.Encodings {
+-		myRenderer, ok := enc.(vnc.Renderer)
+-
+-		if ok {
+-			myRenderer.SetTargetImage(screenImage)
+-		}
+-	}
+ 	// var out *os.File
+ 
+ 	logger.Tracef("connected to: %s", os.Args[1])
+diff --git a/handlers.go b/handlers.go
+index 96d72b4..4c037cd 100644
+--- a/handlers.go
++++ b/handlers.go
+@@ -345,6 +345,21 @@ func (*DefaultClientServerInitHandler) Handle(c Conn) error {
+ 		//		return err
+ 		//	}
+ 	}*/
++
++	// set up canvas and init renderer before other
++	cfg := c.Config().(*ClientConfig)
++	canvas := NewVncCanvas(int(c.Width()), int(c.Height()))
++	canvas.DrawCursor = cfg.DrawCursor
++	c.(*ClientConn).Canvas = canvas
++
++	for _, enc := range cfg.Encodings {
++		myRenderer, ok := enc.(Renderer)
++
++		if ok {
++			myRenderer.SetTargetImage(canvas)
++		}
++	}
++
+ 	return nil
+ }
+ 
